@@ -20,7 +20,7 @@ from river3d.glutils import init_gl, begin_ortho, end_ortho, GLText, draw_box, d
 from river3d.scene import build_scene
 from river3d.hud import (
     draw_minimap, draw_compass, draw_throttle_gauge, draw_top_timer, draw_help_strip,
-    draw_lane_tune_prompt, draw_toast, collect_marker_screens, depth_to_color
+    draw_lane_tune_prompt, draw_toast, depth_to_color#, collect_marker_screens
 )
 from river3d.config import (
     UI_BG_DARK, DOCK_COLOR, BANK_COLOR, SHALLOW_WATER, DEEP_WATER,
@@ -82,6 +82,11 @@ def reset_round(state, reroll_lanes=True):
     lane_tune_timer = 0.0
     current_lane_idx = get_lane_index(state["boat"].pos.y)
     state["obstacles"], state["coins"], state["dock"]=build_scene()
+    
+    # --- distance/score init ---
+    state["start_z"] = state["boat"].pos.y
+    state["best_z"]  = state["boat"].pos.y   # 플레이 중 최소 z 저장(가장 많이 전진)
+    state["score"]   = 0
 
 def main():
     global PAUSED, TOAST_TIMER, TOAST_TEXT, lane_tune_timer, current_lane_idx
@@ -155,6 +160,12 @@ def main():
         if not PAUSED and state["started"] and not (state["win"] or state["lose"]):
             state["time_left"]-=dt; boat.update(dt)
 
+            # --- distance progress & score ---
+            if boat.pos.y < state["best_z"]:
+                state["best_z"] = boat.pos.y
+            best_covered = max(0.0, state["start_z"] - state["best_z"])  # 전진한 총거리
+            state["score"] = int(best_covered * cfg.SCORE_PER_M)
+
             idx = get_lane_index(boat.pos.y)
             if idx is not None and idx != current_lane_idx:
                 current_lane_idx = idx
@@ -215,17 +226,28 @@ def main():
 
         # HUD
         begin_ortho()
-        marker_pts = collect_marker_screens()
+        total=len(coins); got=sum(1 for c in coins if not c.alive)
+        # 시작점→현재 전진 거리 / 시작점→도크 총거리
+        progress_m = max(0.0, state["start_z"] - boat.pos.y)
+        progress_total_m = max(0.0, state["start_z"] - dock.z)
+        draw_top_timer(gltext,
+                       max(0.0,state["time_left"]),
+                       got, total,
+                       progress_m,
+                       stage=1,
+                       progress_total_m=progress_total_m,
+                       score=state["score"])
+        
+        # marker_pts = collect_marker_screens()
         total=len(coins); got=sum(1 for c in coins if not c.alive)
         progress_m = max(0.0, boat.pos.y - dock.z)
-        draw_top_timer(gltext, max(0.0,state["time_left"]), got, total, progress_m)
         draw_compass(gltext, boat)
         draw_throttle_gauge(gltext, boat)
         draw_minimap(gltext, boat, dock)
         draw_help_strip(gltext)
 
-        for sx, sy, label in marker_pts:
-            gltext.draw(label, int(sx)+6, int(sy)-8, (30,30,30,255))
+        # for sx, sy, label in marker_pts:
+        #     gltext.draw(label, int(sx)+6, int(sy)-8, (30,30,30,255))
 
         if lane_tune_timer > 0.0:
             draw_lane_tune_prompt(gltext, current_lane_idx)

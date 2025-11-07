@@ -110,11 +110,15 @@ def draw_top_timer(
     coins_total: int,
     progress_m: float,
     stage: int = 1,
-    progress_total_m: Optional[float] = None
+    progress_total_m: Optional[float] = None,
+    score: int = 0,
 ):
+    
+    
     # 상단 타이머 + 진행도
     bar_w, bar_h = 520, 22
     bar_x, bar_y = (WIDTH - bar_w) // 2, 10
+
 
     quad2(bar_x, bar_y, bar_w, bar_h, (24/255, 28/255, 34/255, 0.85))
     ratio = max(0.0, min(1.0, time_left / SECONDS_LIMIT))
@@ -122,21 +126,23 @@ def draw_top_timer(
     quad2(bar_x, bar_y, int(bar_w * ratio), bar_h, col)
 
     text = (
-        f"Time {time_left:05.2f}s  |  Coins {coins_got}/{coins_total}  |  "
-        f"Stage {stage}  |  Progress {progress_m:.1f} m"
+        f"Time {time_left:05.2f}s  |  "
+#        f"Coins {coins_got}/{coins_total}  |  "
+        f"Stage {stage}  |  "
+#        f"Progress {progress_m:.1f} m  |  "
+#        f"{'Total ' + format(progress_total_m, '.1f') + ' m' if progress_total_m is not None else ''}  |  "
+        f"Score {score}"
     )
-    if progress_total_m is not None:
-        text += f"  |  Total {progress_total_m:.1f} m"
 
-    gltext.draw(text, bar_x + 6, bar_y + bar_h + 6, (235, 235, 240, 255))
+    gltext.draw(text, bar_x + 120, bar_y + bar_h + 6, (0, 0, 0, 255))
 
 
 def draw_compass(gltext: GLText, boat):
-    cx, cy, cw, ch = WIDTH // 2 - 160, 48, 320, 26
+    cx, cy, cw, ch = WIDTH // 2 - 160, 68, 320, 26
     quad2(cx, cy, cw, ch, (22/255, 26/255, 32/255, 0.90))
-    hdg = (boat.heading % 360 + 360) % 360
+    hdg = ((boat.heading + 270) % 360) - 180
     gltext.draw(f"HDG {hdg:06.2f}°", cx+6, cy+4, (235, 235, 240, 255))
-
+    gltext.draw(f"DG {boat.heading:06.2f}°", cx+6, cy+100, (0, 0, 0, 255))
 
 def draw_throttle_gauge(gltext: GLText, boat):
     gx, gy, gw, gh = 20, HEIGHT - 220, 22, 180
@@ -176,7 +182,7 @@ def draw_lane_tune_prompt(gltext: GLText, idx: Optional[int]):
         return
     txt = f"Lane {idx+1}: set flow  1:-30%  2:-15%  3:base  4:+15%  5:+30%"
     tw, th = 620, 34
-    x, y = (WIDTH - tw)//2, 84
+    x, y = (WIDTH - tw)//2, 98
     quad2(x, y, tw, th, (0, 0, 0, 0.60))
     gltext.draw(txt, x+10, y+6, (255, 255, 255, 255))
 
@@ -219,9 +225,9 @@ def draw_banner(gltext: GLText, text_main: str, sub: str = "Press R to restart",
     gltext.draw(text_main, bx+120, by+28, color)
     gltext.draw(sub, bx+96, by+72, (20, 20, 20, 255))
 
-def collect_marker_screens():
-    pts=[]
-    for m in MARKERS:
-        p = project_point(RIVER_WIDTH/2 + 0.4, 0.6, m)
-        if p: pts.append((p[0], HEIGHT - p[1], f"{m} m"))
-    return pts
+# def collect_marker_screens():
+#     pts=[]
+#     for m in MARKERS:
+#         p = project_point(RIVER_WIDTH/2 + 0.4, 0.6, m)
+#         if p: pts.append((p[0], HEIGHT - p[1], f"{m} m"))
+#     return pts

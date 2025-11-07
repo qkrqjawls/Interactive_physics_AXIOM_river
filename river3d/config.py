@@ -1,6 +1,9 @@
 import math
 # 수정수정
 
+# ---- Scoring ----
+SCORE_PER_M = 0.1  # 1 m 전진당 0.1점
+
 # ---- Window / timing ----
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
