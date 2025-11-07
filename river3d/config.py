@@ -4,6 +4,7 @@ import math
 # ---- Window / timing ----
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
+STUN_TIME = 0.20  # 벽 충돌 후 잠깐 컨트롤 지연(초)
 
 # ---- World ----
 RIVER_LENGTH = 220.0
