@@ -84,3 +84,22 @@ def draw_cylinder(radius=0.5,height=0.2,color=(1,1,0),slices=24):
         th=2*3.1415926535*i/slices; x=radius*math.cos(th); z=radius*math.sin(th)
         glVertex3f(x,-height/2,z); glVertex3f(x,height/2,z)
     glEnd()
+# --- color helpers for water depth ---
+def lerp_color(c1, c2, t):
+    t = max(0.0, min(1.0, t))
+    return (
+        c1[0] * (1.0 - t) + c2[0] * t,
+        c1[1] * (1.0 - t) + c2[1] * t,
+        c1[2] * (1.0 - t) + c2[2] * t,
+    )
+
+# shallow↔deep palette
+SHALLOW_WATER = (195/255.0, 225/255.0, 245/255.0)
+DEEP_WATER    = ( 60/255.0, 120/255.0, 220/255.0)
+
+def depth_to_color(depth: float, dmin: float, dmax: float):
+    if dmax <= dmin:
+        return SHALLOW_WATER
+    t = (depth - dmin) / (dmax - dmin)
+    return lerp_color(SHALLOW_WATER, DEEP_WATER, t)
+   
