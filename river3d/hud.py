@@ -218,3 +218,10 @@ def draw_banner(gltext: GLText, text_main: str, sub: str = "Press R to restart",
 
     gltext.draw(text_main, bx+120, by+28, color)
     gltext.draw(sub, bx+96, by+72, (20, 20, 20, 255))
+
+def collect_marker_screens():
+    pts=[]
+    for m in MARKERS:
+        p = project_point(RIVER_WIDTH/2 + 0.4, 0.6, m)
+        if p: pts.append((p[0], HEIGHT - p[1], f"{m} m"))
+    return pts
