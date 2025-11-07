@@ -1,4 +1,5 @@
 import math
+# 수정수정
 
 # ---- Window / timing ----
 WIDTH, HEIGHT = 1280, 720
