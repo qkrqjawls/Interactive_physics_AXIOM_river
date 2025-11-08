@@ -138,7 +138,7 @@ def main():
     for p in candidate_paths_boat:
         if os.path.exists(p):
             boat_tex = load_texture_rgba(p)
-            print("[boat_tex loaded?]", boat_tex is not None)
+            #print("[boat_tex loaded?]", boat_tex is not None) # 디버그
             break
 
 
@@ -277,7 +277,7 @@ def main():
             glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             glBindTexture(GL_TEXTURE_2D, boat_tex)
 
-            hw, hl = BOAT_WID * 1.2, BOAT_LEN * 0.888
+            hw, hl = BOAT_WID * 1.2, BOAT_LEN * 0.8 #배 텍스처 크기 조정
             glColor4f(1,1,1,1)
             glBegin(GL_QUADS)
             glTexCoord2f(0,0); glVertex3f(-hw, 0.0, -hl)
