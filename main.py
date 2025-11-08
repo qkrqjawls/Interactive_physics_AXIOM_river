@@ -17,6 +17,7 @@ from river3d.lanes import (
 )
 from river3d.physics import aabb_overlap, bounce_response
 from river3d.glutils import init_gl, begin_ortho, end_ortho, GLText, draw_box, draw_cylinder
+from river3d.glutils import load_texture_rgba, draw_billboard_sprite
 from river3d.scene import build_scene
 from river3d.hud import (
     draw_minimap, draw_compass, draw_throttle_gauge, draw_top_timer, draw_help_strip,
@@ -100,6 +101,22 @@ def main():
     pygame.display.set_caption("River Crossing 3D – Manning Scaling (Lane Tuning + Markers)")
     clock=pygame.time.Clock(); gltext=GLText(size=18)
     init_gl(); state={}; reset_round(state)
+
+    # --- coin texture load (최초 1회) ---
+    import os
+    candidate_paths = [
+        os.path.join("assets", "coin.png"),
+        os.path.join(os.path.dirname(__file__), "assets", "coin.png"),
+        "coin.png",  # 예비
+    ]
+    coin_tex = None
+    for p in candidate_paths:
+        if os.path.exists(p):
+            coin_tex = load_texture_rgba(p)
+            break
+    if coin_tex is None:
+        # 파일을 못 찾으면 기존 원통 메쉬로 계속 그림
+        pass
 
     while True:
         dt=clock.tick(FPS)/1000.0
@@ -207,7 +224,14 @@ def main():
             glPushMatrix(); glTranslatef(ob.x,ob.h/2,ob.z); draw_box(ob.w/2,ob.h/2,ob.l/2,(0.15,0.15,0.18)); glPopMatrix()
         for c in coins:
             if c.alive:
-                glPushMatrix(); glTranslatef(c.x,0.25,c.z); draw_cylinder(radius=c.r,height=0.2,color=(245/255,170/255,30/255)); glPopMatrix()
+                glPushMatrix()
+                glTranslatef(c.x, 1.0, c.z)        # 살짝 띄워 보이게 y=1.0
+                if coin_tex is not None:
+                    draw_billboard_sprite(size=c.r*2.2, tex_id=coin_tex)
+                else:
+                    # 텍스처를 못 찾았을 때는 기존 메쉬 유지
+                    draw_cylinder(radius=c.r, height=0.2, color=(245/255,170/255,30/255))
+                glPopMatrix()
         glPushMatrix(); glTranslatef(boat.pos.x,0.6/2,boat.pos.y); glRotatef(-boat.heading,0,1,0)
         draw_box(1.4/2,0.6/2,3.0/2,(0.90,0.25,0.25)); glPopMatrix()
 

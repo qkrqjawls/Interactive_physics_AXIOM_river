@@ -103,3 +103,62 @@ def depth_to_color(depth: float, dmin: float, dmax: float):
     t = (depth - dmin) / (dmax - dmin)
     return lerp_color(SHALLOW_WATER, DEEP_WATER, t)
    
+   
+#--- texture helpers ---
+def load_texture_rgba(path: str) -> int:
+    import pygame
+    surf = pygame.image.load(path).convert_alpha()
+    w, h = surf.get_width(), surf.get_height()
+    data = pygame.image.tostring(surf, "RGBA", True)  # OpenGL용 상하반전
+    tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+    glBindTexture(GL_TEXTURE_2D, 0)
+    return tex
+
+def _read_modelview_16f():
+    """환경에 따라 4, 9, 16 등으로 올 수 있어 16개짜리로 강제 확보"""
+    try:
+        mv = glGetFloatv(GL_MODELVIEW_MATRIX)
+        if hasattr(mv, "__len__") and len(mv) == 16:
+            return mv
+    except Exception:
+        pass
+    # 강제 버퍼 경로
+    from ctypes import c_float
+    buf = (c_float * 16)()
+    glGetFloatv(GL_MODELVIEW_MATRIX, buf)  # in-place 채움
+    return [buf[i] for i in range(16)]
+
+def draw_billboard_sprite(size: float, tex_id: int):
+    """카메라를 향하는 스프라이트. 행렬 길이 4 문제 방지 및 알파블렌딩 포함"""
+    mv = _read_modelview_16f()
+    # OpenGL 고정 기능 파이프라인 기준: 열우선 저장
+    # right = (m00, m10, m20), up = (m01, m11, m21)
+    rx, ry, rz = mv[0], mv[4], mv[8]    # x축
+    ux, uy, uz = mv[1], mv[5], mv[9]    # y축
+
+    hs = size * 0.5
+    # 카메라 공간의 right/up을 월드로 가져온 뒤 사각 정점 생성
+    v0 = (-(rx*hs + ux*hs), -(ry*hs + uy*hs), -(rz*hs + uz*hs))
+    v1 = ( +(rx*hs - ux*hs), +(ry*hs - uy*hs), +(rz*hs - uz*hs))
+    v2 = ( +(rx*hs + ux*hs), +(ry*hs + uy*hs), +(rz*hs + uz*hs))
+    v3 = ( -(rx*hs - ux*hs), -(ry*hs - uy*hs), -(rz*hs - uz*hs))
+
+    glEnable(GL_TEXTURE_2D)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glDisable(GL_CULL_FACE)  # 뒤집힘 방지(양면 표시)
+
+    glColor4f(1,1,1,1)
+    glBegin(GL_QUADS)
+    glTexCoord2f(0,1); glVertex3f(*v0)
+    glTexCoord2f(1,1); glVertex3f(*v1)
+    glTexCoord2f(1,0); glVertex3f(*v2)
+    glTexCoord2f(0,0); glVertex3f(*v3)
+    glEnd()
+
+    glEnable(GL_CULL_FACE)
+    glDisable(GL_TEXTURE_2D)
