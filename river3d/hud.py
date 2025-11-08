@@ -126,7 +126,7 @@ def draw_top_timer(
     quad2(bar_x, bar_y, int(bar_w * ratio), bar_h, col)
 
     text = (
-        f"Time {time_left:05.2f}s  |  "
+        f"Time {min(time_left, 20.00):05.2f}s  |  "
 #        f"Coins {coins_got}/{coins_total}  |  "
         f"Stage {stage}  |  "
 #        f"Progress {progress_m:.1f} m  |  "
@@ -142,7 +142,6 @@ def draw_compass(gltext: GLText, boat):
     quad2(cx, cy, cw, ch, (22/255, 26/255, 32/255, 0.90))
     hdg = ((boat.heading + 270) % 360) - 180
     gltext.draw(f"HDG {hdg:06.2f}°", cx+6, cy+4, (235, 235, 240, 255))
-    gltext.draw(f"DG {boat.heading:06.2f}°", cx+6, cy+100, (0, 0, 0, 255))
 
 def draw_throttle_gauge(gltext: GLText, boat):
     gx, gy, gw, gh = 20, HEIGHT - 220, 22, 180

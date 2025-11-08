@@ -18,6 +18,7 @@ DEFAULT_SLOPE = 0.001
 # ---- Gameplay ----
 SECONDS_LIMIT = 20.0
 COIN_TIME_BONUS = 5.0
+TIME_LEFT_MAX = 20.0
 
 # ---- Hydraulics drag (x=cross-stream, z=downstream) ----
 DRAG_X = 0.12

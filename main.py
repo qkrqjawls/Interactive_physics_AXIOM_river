@@ -183,7 +183,10 @@ def main():
                 if c.alive:
                     dx=boat.pos.x-c.x; dz=boat.pos.y-c.z
                     if dx*dx+dz*dz <= (max(cfg.BOAT_WID,cfg.BOAT_LEN)/2 + c.r)**2:
-                        c.alive=False; state["time_left"]+=cfg.COIN_TIME_BONUS; show_toast("+5s")
+                        c.alive=False
+                        state["time_left"]+=cfg.COIN_TIME_BONUS
+                        state["time_left"] = min(state["time_left"], cfg.TIME_LEFT_MAX)
+                        show_toast("+5s")
 
             ba=boat_aabb(boat)
             for ob in obstacles:
