@@ -5,7 +5,8 @@ from OpenGL.GL import *
 from river3d.config import (
     WIDTH, HEIGHT, FPS, SHOW_MINIMAP, SHOW_PREDICT, USE_MOUSE_STEER,
     ENGINE_THRUST, BRAKE_THRUST, TURN_RATE_DEG, RIVER_WIDTH, RIVER_LENGTH,
-    SECONDS_LIMIT, COIN_TIME_BONUS, PREDICT_STEPS, PREDICT_DT
+    SECONDS_LIMIT, COIN_TIME_BONUS, PREDICT_STEPS, PREDICT_DT,
+    BOAT_LEN, BOAT_WID, BOAT_HGT
 )
 from river3d import config as cfg
 from river3d.entities import Boat
@@ -35,6 +36,15 @@ TOAST_TIMER = 0.0
 TOAST_TEXT = ""
 lane_tune_timer = 0.0
 current_lane_idx = None
+
+def camera_yaw(eye, center):
+    dx = center[0] - eye[0]
+    dz = center[2] - eye[2]
+    return math.degrees(math.atan2(dx, dz))   # +Z 기준 (필요시 부호 뒤집기)
+
+def cam_yaw_from_boat_forward(boat):
+    f = boat.forward_vec()      # (x, y) = (world X, world Z)
+    return math.degrees(math.atan2(f.x, f.y))
 
 def show_toast(text, sec=1.2):
     global TOAST_TEXT, TOAST_TIMER
@@ -117,6 +127,20 @@ def main():
     if coin_tex is None:
         # 파일을 못 찾으면 기존 원통 메쉬로 계속 그림
         pass
+    
+    # --- boat texture load (최초 1회) ---
+    boat_tex = None
+    candidate_paths_boat = [
+        os.path.join("assets", "boat2.png"),
+        os.path.join(os.path.dirname(__file__), "assets", "boat2.png"),
+        "boat2.png",
+    ]
+    for p in candidate_paths_boat:
+        if os.path.exists(p):
+            boat_tex = load_texture_rgba(p)
+            print("[boat_tex loaded?]", boat_tex is not None)
+            break
+
 
     while True:
         dt=clock.tick(FPS)/1000.0
@@ -232,8 +256,40 @@ def main():
                     # 텍스처를 못 찾았을 때는 기존 메쉬 유지
                     draw_cylinder(radius=c.r, height=0.2, color=(245/255,170/255,30/255))
                 glPopMatrix()
-        glPushMatrix(); glTranslatef(boat.pos.x,0.6/2,boat.pos.y); glRotatef(-boat.heading,0,1,0)
-        draw_box(1.4/2,0.6/2,3.0/2,(0.90,0.25,0.25)); glPopMatrix()
+                
+        # ----- 선체(입체, 진행방향 유지) -----
+        # glPushMatrix()
+        # glTranslatef(boat.pos.x, BOAT_HGT/2, boat.pos.y)
+        # glRotatef(-boat.heading, 0, 1, 0)   # 물리적 진행방향 그대로
+        # draw_box(BOAT_WID/2, BOAT_HGT/2, BOAT_LEN/2, (0.85, 0.28, 0.28))
+        # glPopMatrix()
+
+        # ----- 상면 데칼(카메라 바라보기) -----
+        if boat_tex is not None:
+            yaw = cam_yaw_from_boat_forward(boat)
+
+            glPushMatrix()
+            glTranslatef(boat.pos.x, BOAT_HGT + 0.02, boat.pos.y)  # 선체 위로 살짝 띄우기
+            glRotatef(yaw, 0, 1, 0)                                # 카메라 쪽으로 회전
+
+            glDisable(GL_CULL_FACE)                                # 양면 표시
+            glEnable(GL_TEXTURE_2D)
+            glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glBindTexture(GL_TEXTURE_2D, boat_tex)
+
+            hw, hl = BOAT_WID * 1.2, BOAT_LEN * 0.888
+            glColor4f(1,1,1,1)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0,0); glVertex3f(-hw, 0.0, -hl)
+            glTexCoord2f(1,0); glVertex3f( hw, 0.0, -hl)
+            glTexCoord2f(1,1); glVertex3f( hw, 0.0,  hl)
+            glTexCoord2f(0,1); glVertex3f(-hw, 0.0,  hl)
+            glEnd()
+
+            glBindTexture(GL_TEXTURE_2D, 0)
+            glDisable(GL_TEXTURE_2D); glDisable(GL_BLEND)
+            glEnable(GL_CULL_FACE)
+            glPopMatrix()
 
         # predictive path
         if cfg.SHOW_PREDICT:
