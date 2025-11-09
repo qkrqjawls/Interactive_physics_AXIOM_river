@@ -162,3 +162,60 @@ def draw_billboard_sprite(size: float, tex_id: int):
 
     glEnable(GL_CULL_FACE)
     glDisable(GL_TEXTURE_2D)
+    
+#--- coin draw helper ---
+def draw_textured_coin(radius: float, thickness: float, tex_id: int, slices: int = 64, tex_scale: float = 1.0):
+    """앞/뒷면은 coin 텍스처, 옆면은 골드 림으로 그리는 3D 동전"""
+    hs = thickness * 0.5
+
+    # 공통 상태
+    glEnable(GL_TEXTURE_2D)
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+    
+    # 텍스처가 경계 밖(>1, <0)로 나가도 테두리 깨짐 없게
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+    
+    glDisable(GL_CULL_FACE)  # 앞/뒤 모두 보이게
+
+    # --- Top (y=+hs): TRIANGLE_FAN with radial UV (0.5+0.5*cos, 0.5+0.5*sin)
+    glColor4f(1,1,1,1)
+    glBegin(GL_TRIANGLE_FAN)
+    glTexCoord2f(0.5, 0.5); glVertex3f(0, +hs, 0)
+    for i in range(slices + 1):
+        th = 2*math.pi * i / slices
+        u = 0.5 + 0.5 * tex_scale * math.cos(th)   # << 확대 핵심
+        v = 0.5 + 0.5 * tex_scale * math.sin(th)
+        x = radius * math.cos(th)
+        z = radius * math.sin(th)
+        glTexCoord2f(u, v); glVertex3f(x, +hs, z)
+    glEnd()
+
+    # --- Bottom (y=-hs): 텍스처가 거울처럼 뒤집히지 않도록 v를 반대로
+    glBegin(GL_TRIANGLE_FAN)
+    glTexCoord2f(0.5, 0.5); glVertex3f(0, -hs, 0)
+    for i in range(slices + 1):
+        th = 2*math.pi * i / slices
+        u = 0.5 + 0.5 * tex_scale * math.cos(th)
+        v = 0.5 + 0.5 * tex_scale * math.sin(th)
+        x = radius * math.cos(th)
+        z = radius * math.sin(th)
+        glTexCoord2f(u, v); glVertex3f(x, -hs, z)
+    glEnd()
+
+    # --- Rim (옆면): QUAD_STRIP, 금속 계열 컬러(텍스처 없음)
+    glDisable(GL_TEXTURE_2D)
+    glColor3f(0.95, 0.78, 0.25)
+    glBegin(GL_QUAD_STRIP)
+    for i in range(slices + 1):
+        th = 2*math.pi * i / slices
+        x = radius * math.cos(th)
+        z = radius * math.sin(th)
+        glVertex3f(x, -hs, z)
+        glVertex3f(x, +hs, z)
+    glEnd()
+
+    # 상태 복구
+    glEnable(GL_CULL_FACE)
+    glDisable(GL_BLEND)
