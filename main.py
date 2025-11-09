@@ -18,7 +18,7 @@ from river3d.lanes import (
 )
 from river3d.physics import aabb_overlap, bounce_response
 from river3d.glutils import init_gl, begin_ortho, end_ortho, GLText, draw_box, draw_cylinder
-from river3d.glutils import load_texture_rgba, draw_billboard_sprite, draw_textured_coin
+from river3d.glutils import load_texture_rgba, draw_billboard_sprite
 from river3d.scene import build_scene
 from river3d.hud import (
     draw_minimap, draw_compass, draw_throttle_gauge, draw_top_timer, draw_help_strip,
@@ -249,21 +249,12 @@ def main():
         for c in coins:
             if c.alive:
                 glPushMatrix()
-                # 1) 중심 높이를 반지름(c.r)만큼 올리면 바닥(y=0)에 '세워짐'
-                glTranslatef(c.x, c.r, c.z)
-
-                # 2) X축으로 90° 회전 → 원반의 앞/뒷면이 수직이 됨(서 있는 동전)
-                glRotatef(90.0, 1, 0, 0)
-
-                # 3) 스핀은 이제 Z축을 기준으로 주면 자연스러움(세워진 동전의 축)
-                spin = (pygame.time.get_ticks() * 0.18) % 360
-                glRotatef(spin, 0, 0, 1)
-
-                # 4) 그리기
+                glTranslatef(c.x, 1.0, c.z)        # 살짝 띄워 보이게 y=1.0
                 if coin_tex is not None:
-                    draw_textured_coin(radius=c.r, thickness=0.25, tex_id=coin_tex, slices=64, tex_scale=0.7)
+                    draw_billboard_sprite(size=c.r*2.2, tex_id=coin_tex)
                 else:
-                    draw_cylinder(radius=c.r, height=0.25, color=(245/255,170/255,30/255))
+                    # 텍스처를 못 찾았을 때는 기존 메쉬 유지
+                    draw_cylinder(radius=c.r, height=0.2, color=(245/255,170/255,30/255))
                 glPopMatrix()
                 
         # ----- 선체(입체, 진행방향 유지) -----
