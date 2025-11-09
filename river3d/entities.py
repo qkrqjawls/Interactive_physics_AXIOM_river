@@ -9,7 +9,7 @@ class Boat:
     def __init__(self, x, z):
         self.pos = pygame.Vector2(x, z)
         self.vel = pygame.Vector2(0, 0)
-        self.heading = -90.0
+        self.heading = -90
         self.stun_timer = 0.0
         self.has_target = False
         self.vel_target = pygame.Vector2(0, 0)

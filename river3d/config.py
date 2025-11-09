@@ -1,8 +1,13 @@
 import math
+# 수정수정
+
+# ---- Scoring ----
+SCORE_PER_M = 0.1  # 1 m 전진당 0.1점
 
 # ---- Window / timing ----
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
+STUN_TIME = 0.20  # 벽 충돌 후 잠깐 컨트롤 지연(초)
 
 # ---- World ----
 RIVER_LENGTH = 220.0
@@ -13,6 +18,7 @@ DEFAULT_SLOPE = 0.001
 # ---- Gameplay ----
 SECONDS_LIMIT = 20.0
 COIN_TIME_BONUS = 5.0
+TIME_LEFT_MAX = 20.0
 
 # ---- Hydraulics drag (x=cross-stream, z=downstream) ----
 DRAG_X = 0.12
