@@ -12,6 +12,16 @@ from river3d.config import (
 from river3d.lanes import LANES, MIN_DEPTH, MAX_DEPTH
 from river3d.glutils import begin_ortho, end_ortho, quad2, GLText, depth_to_color
 
+from OpenGL.GL import *
+from OpenGL.GLU import *
+from .config import (
+    WIDTH, HEIGHT, UI_BG_DARK, DOCK_COLOR, SHALLOW_WATER, DEEP_WATER,
+    RIVER_LENGTH, RIVER_WIDTH, MARKERS, SHOW_MINIMAP,
+    PREDICT_STEPS, PREDICT_DT, SECONDS_LIMIT
+)
+from .glutils import quad2
+from .lanes import LANES, MIN_DEPTH, MAX_DEPTH, FLOW_SCALE, get_lane_index
+
 # --------- UI color helpers ---------
 def timer_color(elapsed_ratio: float):
     """
@@ -218,6 +228,15 @@ def draw_banner(gltext: GLText, text_main: str, sub: str = "Press R to restart",
 
     gltext.draw(text_main, bx+120, by+28, color)
     gltext.draw(sub, bx+96, by+72, (20, 20, 20, 255))
+    
+def project_point(x,y,z):
+    model = glGetDoublev(GL_MODELVIEW_MATRIX)
+    proj  = glGetDoublev(GL_PROJECTION_MATRIX)
+    view  = glGetIntegerv(GL_VIEWPORT)
+    win = gluProject(x,y,z, model, proj, view)
+    if win is None: return None
+    sx, sy, _ = win
+    return (sx, sy)
 
 def collect_marker_screens():
     pts=[]
