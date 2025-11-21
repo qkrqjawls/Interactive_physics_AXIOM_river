@@ -1,26 +1,19 @@
 # river3d/hud.py
-
 from typing import Optional
+
+# OpenGL (2D HUD 그리기용)
 from OpenGL.GL import (
-    glBegin, glEnd, glVertex2f, glVertex3f, glColor4f, glColor3f,
+    glBegin, glEnd, glVertex2f, glColor4f,
     GL_QUADS, GL_LINES, GL_LINE_STRIP, GL_POINTS, glPointSize
 )
+from OpenGL.GL import glGetDoublev, glGetIntegerv, GL_MODELVIEW_MATRIX, GL_PROJECTION_MATRIX, GL_VIEWPORT
+from OpenGL.GLU import gluProject
 
-from river3d.config import (
+from .config import (
     WIDTH, HEIGHT, SECONDS_LIMIT, RIVER_LENGTH, RIVER_WIDTH
 )
-from river3d.lanes import LANES, MIN_DEPTH, MAX_DEPTH
-from river3d.glutils import begin_ortho, end_ortho, quad2, GLText, depth_to_color
-
-from OpenGL.GL import *
-from OpenGL.GLU import *
-from .config import (
-    WIDTH, HEIGHT, UI_BG_DARK, DOCK_COLOR, SHALLOW_WATER, DEEP_WATER,
-    RIVER_LENGTH, RIVER_WIDTH, MARKERS, SHOW_MINIMAP,
-    PREDICT_STEPS, PREDICT_DT, SECONDS_LIMIT
-)
-from .glutils import quad2
-from .lanes import LANES, MIN_DEPTH, MAX_DEPTH, FLOW_SCALE, get_lane_index
+from .lanes import LANES, MIN_DEPTH, MAX_DEPTH
+from .glutils import quad2, GLText, depth_to_color
 
 # --------- UI color helpers ---------
 def timer_color(elapsed_ratio: float):
@@ -99,18 +92,11 @@ def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
     glVertex2f(mm_x + u*mm_w, mm_y + v*mm_h)
     glEnd()
 
-    # 현재 레인 배속(옵션): 여기서는 gltext로 간단히 표기만
-    idx_text = ""
-    # boat.pos.y가 속한 레인 인덱스를 추정
-    try:
-        for i, ln in enumerate(LANES):
-            if ln.z0 <= boat.pos.y < ln.z1:
-                idx_text = f"Lane {i+1}"
-                break
-    except Exception:
-        pass
-    if idx_text:
-        gltext.draw(idx_text, mm_x+8, mm_y+mm_h+6, (220, 220, 230, 255))
+    # 현재 레인 간단 표기
+    for i, ln in enumerate(LANES):
+        if ln.z0 <= boat.pos.y < ln.z1:
+            gltext.draw(f"Lane {i+1}", mm_x+8, mm_y+mm_h+6, (220, 220, 230, 255))
+            break
 
 
 def draw_top_timer(
@@ -120,7 +106,8 @@ def draw_top_timer(
     coins_total: int,
     progress_m: float,
     stage: int = 1,
-    progress_total_m: Optional[float] = None
+    progress_total_m: Optional[float] = None,
+    score: int = 0,
 ):
     # 상단 타이머 + 진행도
     bar_w, bar_h = 520, 22
@@ -131,20 +118,20 @@ def draw_top_timer(
     col = timer_color(1.0 - ratio)
     quad2(bar_x, bar_y, int(bar_w * ratio), bar_h, col)
 
+    # 요청에 맞춰 간단 표기(Score 중심), 필요 시 주석 풀어서 확장 가능
     text = (
-        f"Time {time_left:05.2f}s  |  Coins {coins_got}/{coins_total}  |  "
-        f"Stage {stage}  |  Progress {progress_m:.1f} m"
+        f"Time {min(time_left, 20.00):05.2f}s  |  "
+        f"Stage {stage}  |  "
+        f"Score {score}"
     )
-    if progress_total_m is not None:
-        text += f"  |  Total {progress_total_m:.1f} m"
-
-    gltext.draw(text, bar_x + 6, bar_y + bar_h + 6, (235, 235, 240, 255))
+    gltext.draw(text, bar_x + 120, bar_y + bar_h + 6, (0, 0, 0, 255))
 
 
 def draw_compass(gltext: GLText, boat):
-    cx, cy, cw, ch = WIDTH // 2 - 160, 48, 320, 26
+    cx, cy, cw, ch = WIDTH // 2 - 160, 68, 320, 26
     quad2(cx, cy, cw, ch, (22/255, 26/255, 32/255, 0.90))
-    hdg = (boat.heading % 360 + 360) % 360
+    # 시각상 전방을 0°로 보고 ±180° 범위로 표현
+    hdg = ((boat.heading + 270) % 360) - 180
     gltext.draw(f"HDG {hdg:06.2f}°", cx+6, cy+4, (235, 235, 240, 255))
 
 
@@ -186,7 +173,7 @@ def draw_lane_tune_prompt(gltext: GLText, idx: Optional[int]):
         return
     txt = f"Lane {idx+1}: set flow  1:-30%  2:-15%  3:base  4:+15%  5:+30%"
     tw, th = 620, 34
-    x, y = (WIDTH - tw)//2, 84
+    x, y = (WIDTH - tw)//2, 98
     quad2(x, y, tw, th, (0, 0, 0, 0.60))
     gltext.draw(txt, x+10, y+6, (255, 255, 255, 255))
 
@@ -228,19 +215,55 @@ def draw_banner(gltext: GLText, text_main: str, sub: str = "Press R to restart",
 
     gltext.draw(text_main, bx+120, by+28, color)
     gltext.draw(sub, bx+96, by+72, (20, 20, 20, 255))
-    
-def project_point(x,y,z):
+
+
+# --------- 3D→2D label projection (선택 사용) ---------
+def project_point(x: float, y: float, z: float):
+    """3D 좌표를 화면 픽셀 좌표로 투영 (HUD 라벨 등 용도)"""
     model = glGetDoublev(GL_MODELVIEW_MATRIX)
     proj  = glGetDoublev(GL_PROJECTION_MATRIX)
     view  = glGetIntegerv(GL_VIEWPORT)
-    win = gluProject(x,y,z, model, proj, view)
-    if win is None: return None
+    win = gluProject(x, y, z, model, proj, view)
+    if win is None:
+        return None
     sx, sy, _ = win
-    return (sx, sy)
+    # OpenGL 원점은 왼쪽-아래, HUD는 왼쪽-위 기준이므로 y 반전하려면 여기서 처리
+    return (sx, HEIGHT - sy)
 
-def collect_marker_screens():
-    pts=[]
-    for m in MARKERS:
-        p = project_point(RIVER_WIDTH/2 + 0.4, 0.6, m)
-        if p: pts.append((p[0], HEIGHT - p[1], f"{m} m"))
-    return pts
+
+# --------- Next Stage Tuner ---------
+def draw_next_stage_tuner(gltext: GLText, scales, active_lane: Optional[int] = None):
+    """
+    SUCCESS 이후 다음 스테이지 시작 전에 레인별 유속 배율(0.60~1.60) 조절 패널
+    - 마우스로 막대 클릭/드래그
+    - 숫자키 1..5로 해당 레인에 포커스(메인에서 처리)
+    - Enter 적용 / ESC 기본값
+    """
+    quad2(0, 0, WIDTH, HEIGHT, (0, 0, 0, 0.50))
+    panel_w, panel_h = 720, 360
+    px, py = (WIDTH - panel_w)//2, (HEIGHT - panel_h)//2
+    quad2(px, py, panel_w, panel_h, (1, 1, 1, 0.96))
+    gltext.draw("Next Stage Setup", px+24, py+18, (30, 30, 30, 255))
+    gltext.draw("Adjust lane flow multipliers (0.60~1.60). Click bars or use 1..5 to snap. Enter=Start, ESC=Cancel",
+                px+24, py+52, (60, 60, 60, 255))
+
+    left = px + 36
+    top  = py + 96
+    w_bar = panel_w - 72
+    h_bar = 18
+    gap  = 42
+
+    for i, val in enumerate(scales):
+        y = top + i*gap
+        gltext.draw(f"Lane {i+1}", left, y-18, (40, 40, 40, 255))
+        # 바 배경
+        quad2(left, y, w_bar, h_bar, (0.90, 0.93, 0.96, 1.0))
+        # 값 → 0..1 정규화
+        t = (val - 0.60) / (1.60 - 0.60)
+        t = max(0.0, min(1.0, t))
+        fill_w = int(w_bar * t)
+        quad2(left, y, fill_w, h_bar, (76/255, 201/255, 128/255, 0.95 if active_lane == i else 0.85))
+        gltext.draw(f"x{val:.2f}", left + w_bar + 12, y-4, (30, 30, 30, 255))
+
+    gltext.draw("Enter: start next stage   |   ESC: cancel (defaults)   |   Click/drag bars",
+                px+24, py+panel_h-40, (60, 60, 60, 255))
