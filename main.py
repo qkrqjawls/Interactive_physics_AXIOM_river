@@ -27,6 +27,13 @@ from river3d.hud import (
     draw_minimap, draw_compass, draw_throttle_gauge, draw_top_timer, draw_help_strip,
     draw_lane_tune_prompt, draw_toast, draw_next_stage_tuner
 )
+# === Launch(사전 설정) UI 상태 ===
+LAUNCH_MODE = True              # 시작 전: True / 시작하면 False
+LAUNCH_R = 60                   # 노브 반지름(px)
+LAUNCH_MAX_SPEED = 22.0         # 초기 속도 상한(m/s)
+launch_center = (140, HEIGHT - 140)  # 화면 좌하단 쪽에 위치
+launch_vec = pygame.Vector2(0.0, -12.0)  # 기본값: 정면(−z) 12 m/s
+launch_dragging = False
 
 # --- runtime state ---
 PAUSED = False
@@ -44,6 +51,63 @@ def show_toast(text, sec=1.2):
     global TOAST_TEXT, TOAST_TIMER
     TOAST_TEXT = text
     TOAST_TIMER = sec
+
+# --- Launch knob helpers ---
+
+def _clamp_launch_from_mouse(mx, my):
+    """마우스로 벡터 노브를 움직였을 때 launch_vec 갱신."""
+    global launch_vec
+    cx, cy = launch_center
+    d = pygame.Vector2(mx - cx, my - cy)
+    if d.length() < 1:
+        return
+    # 화면 좌표계(y 아래로 +)를 게임 좌표계(정면 -z)로 맵핑:
+    ang = math.degrees(math.atan2(-d.x, -d.y))   # 위쪽이 -z가 되도록
+    ang = max(-90.0, min(90.0, ang))             # 좌/우 ±90° 제한
+    r = min(LAUNCH_R, d.length())
+    spd = (r / LAUNCH_R) * LAUNCH_MAX_SPEED
+    # vx = spd * sin, vz = - spd * cos  (정면이 -z)
+    launch_vec.update(
+        -math.sin(math.radians(ang)) * spd,
+        -math.cos(math.radians(ang)) * spd
+    )
+
+def set_launch_angle_speed(angle_deg: float, speed: float):
+    """빠른 프리셋용: 각도/속력으로 launch_vec 설정. (정면 -90°)"""
+    global launch_vec
+    th = math.radians(angle_deg)
+    launch_vec.update(speed * math.cos(th),  # vx
+                      speed * math.sin(th))  # vz
+
+def handle_launch_events(ev, state, boat):
+    """LAUNCH_MODE에서만 이벤트 처리: 드래그/프리셋/Enter 시작"""
+    global LAUNCH_MODE, launch_dragging
+
+    if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+        mx, my = ev.pos
+        cx, cy = launch_center
+        if pygame.Vector2(mx - cx, my - cy).length() <= LAUNCH_R + 14:
+            launch_dragging = True
+            _clamp_launch_from_mouse(mx, my)
+
+    elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+        launch_dragging = False
+
+    elif ev.type == pygame.MOUSEMOTION and launch_dragging:
+        mx, my = ev.pos
+        _clamp_launch_from_mouse(mx, my)
+
+    elif ev.type == pygame.KEYDOWN:
+        # 숫자 프리셋(옵션)
+        if ev.key == pygame.K_1: set_launch_angle_speed(-90.0,  8.0)   # 직진 8
+        if ev.key == pygame.K_2: set_launch_angle_speed(-90.0, 12.0)   # 직진 12
+        if ev.key == pygame.K_3: set_launch_angle_speed(-90.0, 16.0)   # 직진 16
+
+        # Enter로 확정 & 시작
+        if ev.key == pygame.K_RETURN:
+            boat.set_initial_vec(launch_vec.x, launch_vec.y)  # ← 핵심
+            state["started"] = True
+            LAUNCH_MODE = False
 
 def lerp_color(c1, c2, t):
     t = max(0, min(1, t))
@@ -108,6 +172,10 @@ def reset_round(state, reroll_lanes=True):
     state["start_z"] = state["boat"].pos.y
     state["best_z"]  = state["boat"].pos.y
     state["score"]   = 0
+    state["launch_active"] = True
+    state["launch_vec"]    = pygame.Vector2(0, -12.0)   # 위쪽으로 12 m/s
+    state["started"]       = False
+
 
     # stage counter (없으면 1로)
     state["stage"] = state.get("stage", 1)
@@ -141,6 +209,10 @@ def main():
     init_gl()
     state = {}
     reset_round(state)
+    boat = state["boat"]
+    state["launch_active"] = True
+    state["launch_vec"]    = pygame.Vector2(0, -12.0)
+    state["started"]       = False 
 
     # textures
     coin_tex = load_texture_once([
@@ -160,11 +232,16 @@ def main():
 
     while True:
         dt = clock.tick(FPS) / 1000.0
+        dt = clock.tick(FPS)/1000.0
+        boat = state["boat"]         # <-- 추가: 항상 최신 state의 boat를 참조
 
         # ----- events -----
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit(); sys.exit(0)
+            if LAUNCH_MODE:
+                handle_launch_events(ev, state, boat)
+                continue
 
             # -------- Next Stage Tuner 모드 입력 --------
             if NEXT_STAGE_MODE:
@@ -215,6 +292,10 @@ def main():
                     pygame.quit(); sys.exit(0)
                 elif ev.key == pygame.K_r:
                     reset_round(state)
+                    boat = state["boat"]
+                    state["launch_active"] = True
+                    state["launch_vec"]    = pygame.Vector2(0, -12.0)
+                    state["started"]       = False
                 elif ev.key == pygame.K_l:
                     randomize_lane_depths()
                     globals()["LANES"], globals()["LANE_INFO"] = build_lanes_from_manning()
@@ -266,7 +347,7 @@ def main():
         boat = state["boat"]
 
         if not NEXT_STAGE_MODE:
-            if not state["started"] and not PAUSED:
+            if (not LAUNCH_MODE) and (not state["started"]) and (not PAUSED):
                 if keys[pygame.K_LEFT] or keys[pygame.K_RIGHT] or keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_RETURN]:
                     boat.set_initial(); state["started"] = True
 
@@ -442,6 +523,54 @@ def main():
 
         draw_compass(gltext, boat)
         draw_throttle_gauge(gltext, boat)
+        def draw_launch_knob(gltext):
+            """begin_ortho()~end_ortho() 사이에서 호출"""
+            cx, cy = launch_center
+
+            # 바탕(바깥 원)
+            glColor4f(55/255,60/255,75/255, 1.0)
+            glBegin(GL_TRIANGLE_FAN)
+            glVertex2f(cx, cy)
+            for i in range(64+1):
+                th = 2*math.pi*i/64
+                glVertex2f(cx + (LAUNCH_R+10)*math.cos(th), cy + (LAUNCH_R+10)*math.sin(th))
+            glEnd()
+
+            # 안쪽 원
+            glColor4f(28/255,32/255,40/255, 1.0)
+            glBegin(GL_TRIANGLE_FAN)
+            glVertex2f(cx, cy)
+            for i in range(64+1):
+                th = 2*math.pi*i/64
+                glVertex2f(cx + LAUNCH_R*math.cos(th), cy + LAUNCH_R*math.sin(th))
+            glEnd()
+
+            # 벡터 화살표(launch_vec)
+            vx, vz = launch_vec.x, launch_vec.y
+            spd = max(launch_vec.length(), 1e-6)
+            r = (spd / LAUNCH_MAX_SPEED) * LAUNCH_R
+            ang = math.atan2(vz, vx)
+            tip = (cx + (-math.sin(ang)) * r,
+                cy + (-math.cos(ang)) * r)
+
+            glColor4f(90/255,200/255,255/255, 1.0)
+            glBegin(GL_LINES)
+            glVertex2f(cx, cy); glVertex2f(tip[0], tip[1])
+            glEnd()
+
+            glBegin(GL_TRIANGLE_FAN)
+            glVertex2f(tip[0], tip[1])
+            for i in range(32+1):
+                th=2*math.pi*i/32
+                glVertex2f(tip[0] + 5*math.cos(th), tip[1] + 5*math.sin(th))
+            glEnd()
+
+            angle_deg = math.degrees(ang)  # +x=0°, +z=+90°, -z=-90°
+            gltext.draw("Launch", cx-30, cy-LAUNCH_R-26, (230,230,230,255))
+            gltext.draw(f"Speed: {spd:04.1f} m/s", cx-52, cy+LAUNCH_R+10, (200,200,210,255))
+            gltext.draw(f"Angle: {angle_deg:+05.1f}°", cx-58, cy+LAUNCH_R+30, (200,200,210,255))
+            gltext.draw("ENTER to start", cx-66, cy+LAUNCH_R+52, (240,240,240,255))
+
         draw_minimap(gltext, boat, dock)
         draw_help_strip(gltext)
 
@@ -457,7 +586,8 @@ def main():
         else:
             if state["lose"]:
                 gltext.draw("FAIL", WIDTH//2-30, HEIGHT//2-10, (232,93,93,255))
-
+        if LAUNCH_MODE:
+            draw_launch_knob(gltext)
         end_ortho()
 
         pygame.display.flip()

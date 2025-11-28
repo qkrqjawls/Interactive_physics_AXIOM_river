@@ -28,6 +28,24 @@ class Boat:
     def set_initial(self):
         self.vel = self.forward_vec() * self.launch_speed
         self.started = True
+        
+    def set_initial_vec(self, vx: float, vz: float):
+        """월드 좌표계 속도를 직접 지정. 정면(하류)은 보통 -z."""
+        self.vel = pygame.Vector2(vx, vz)
+        # 속도벡터로부터 heading 자동 계산
+        self.heading = math.degrees(math.atan2(vz, vx))
+        self.started = True
+
+    def set_initial_by_angle_speed(self, angle_deg: float, speed: float):
+        """
+        각도/속력으로 지정.
+        기준: +x가 0°, +z가 +90°, -z(정면)는 -90°
+        """
+        th = math.radians(angle_deg)
+        vx = speed * math.cos(th)
+        vz = speed * math.sin(th)
+        self.set_initial_vec(vx, vz)
+
 
     def apply_thrust(self, thrust, dt):
         if abs(thrust) < 1e-6: return
