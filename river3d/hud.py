@@ -95,6 +95,7 @@ def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
     # 현재 레인 간단 표기
     for i, ln in enumerate(LANES):
         if ln.z0 <= boat.pos.y < ln.z1:
+            # 레인 번호를 1번부터 시작하여 표시
             gltext.draw(f"Lane {i+1}", mm_x+8, mm_y+mm_h+6, (220, 220, 230, 255))
             break
 
@@ -267,3 +268,4 @@ def draw_next_stage_tuner(gltext: GLText, scales, active_lane: Optional[int] = N
 
     gltext.draw("Enter: start next stage   |   ESC: cancel (defaults)   |   Click/drag bars",
                 px+24, py+panel_h-40, (60, 60, 60, 255))
+

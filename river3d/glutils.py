@@ -59,15 +59,48 @@ class GLText:
         glDisable(GL_TEXTURE_2D); glDeleteTextures([tex])
 
 # ---- simple draw helpers ----
-def draw_box(hw,hh,hd,color):
-    glColor3f(*color); glBegin(GL_QUADS)
-    glVertex3f(hw,-hh,-hd); glVertex3f(hw,hh,-hd); glVertex3f(hw,hh,hd); glVertex3f(hw,-hh,hd)
-    glVertex3f(-hw,-hh,hd); glVertex3f(-hw,hh,hd); glVertex3f(-hw,hh,-hd); glVertex3f(-hw,-hh,-hd)
-    glVertex3f(-hw,hh,-hd); glVertex3f(hw,hh,-hd); glVertex3f(hw,hh,hd); glVertex3f(-hw,hh,hd)
-    glVertex3f(-hw,-hh,hd); glVertex3f(hw,-hh,hd); glVertex3f(hw,-hh,-hd); glVertex3f(-hw,-hh,-hd)
-    glVertex3f(-hw,-hh,hd); glVertex3f(-hw,hh,hd); glVertex3f(hw,hh,hd); glVertex3f(hw,-hh,hd)
-    glVertex3f(hw,-hh,-hd); glVertex3f(hw,hh,-hd); glVertex3f(-hw,hh,-hd); glVertex3f(-hw,-hh,-hd)
+def draw_box(hw, hh, hd, color):
+    glColor3f(*color)
+    glBegin(GL_QUADS)
+
+    # Front (+Z)
+    glVertex3f(-hw, -hh,  hd)
+    glVertex3f( hw, -hh,  hd)
+    glVertex3f( hw,  hh,  hd)
+    glVertex3f(-hw,  hh,  hd)
+
+    # Back (-Z)
+    glVertex3f( hw, -hh, -hd)
+    glVertex3f(-hw, -hh, -hd)
+    glVertex3f(-hw,  hh, -hd)
+    glVertex3f( hw,  hh, -hd)
+
+    # Left (-X)
+    glVertex3f(-hw, -hh, -hd)
+    glVertex3f(-hw, -hh,  hd)
+    glVertex3f(-hw,  hh,  hd)
+    glVertex3f(-hw,  hh, -hd)
+
+    # Right (+X)
+    glVertex3f( hw, -hh,  hd)
+    glVertex3f( hw, -hh, -hd)
+    glVertex3f( hw,  hh, -hd)
+    glVertex3f( hw,  hh,  hd)
+
+    # Top (+Y)
+    glVertex3f(-hw,  hh,  hd)
+    glVertex3f( hw,  hh,  hd)
+    glVertex3f( hw,  hh, -hd)
+    glVertex3f(-hw,  hh, -hd)
+
+    # Bottom (-Y)
+    glVertex3f(-hw, -hh, -hd)
+    glVertex3f( hw, -hh, -hd)
+    glVertex3f( hw, -hh,  hd)
+    glVertex3f(-hw, -hh,  hd)
+
     glEnd()
+
 
 def draw_cylinder(radius=0.5,height=0.2,color=(1,1,0),slices=24):
     glColor3f(*color)
