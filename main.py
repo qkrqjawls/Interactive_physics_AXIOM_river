@@ -26,7 +26,8 @@ from river3d.map_gen import get_river_center, get_river_width, get_island_bounds
 from river3d.glutils import (
     init_gl, begin_ortho, end_ortho, GLText,
     draw_box, draw_cylinder, load_texture_rgba,
-    draw_textured_coin, depth_to_color
+    draw_textured_coin, depth_to_color,
+    get_text_texture, draw_textured_quad_3d
 )
 from river3d.scene import build_scene
 from river3d.hud import (
@@ -37,7 +38,7 @@ from river3d.hud import (
 
 # ---------- 런치 UI(초기속력) 오버레이 ----------
 LAUNCH_RADIUS = 70
-LAUNCH_SPEED_MAX = 22.0  # m/s 기준 속력 캡
+LAUNCH_SPEED_MAX = 35.0  # m/s 기준 속력 캡 (User requested 35)
 LAUNCH_CENTER = (140, HEIGHT - 140)
 
 def quad2(x,y,w,h,rgba):
@@ -823,20 +824,37 @@ def draw_distance_markers():
 def draw_home_screen(gltext: GLText, state):
     begin_ortho()
     
-    # 배경
-    quad2(0, 0, WIDTH, HEIGHT, (0.1, 0.12, 0.15, 1.0))
+    # 배경 (약간의 그라데이션 느낌을 위해 여러 겹 칠하기 가능하지만, 일단 단색 유지)
+    quad2(0, 0, WIDTH, HEIGHT, (0.08, 0.10, 0.13, 1.0))
     
-    # 타이틀
-    gltext.draw("INFINITE RIVER", WIDTH//2 - 100, 100, (255, 255, 255, 255))
+    # 타이틀 (중앙 정렬, 큰 폰트 텍스처 사용 권장되지만 GLText로 최대한 크게)
+    # GLText는 폰트 크기 변경이 동적으로 어려우므로, 위치를 잘 잡아야 함.
+    # 텍스처 텍스트를 사용하여 크게 그림
+    title_text = "INFINITE RIVER"
+    tex_id, tw, th, aspect = get_text_texture(title_text, font_size=80, color=(100, 200, 255, 255))
+    
+    # 타이틀 위치 (화면 중앙 상단)
+    title_w = 600
+    title_h = title_w / aspect
+    title_x = WIDTH // 2
+    title_y = 120
+    
+    glPushMatrix()
+    glTranslatef(title_x, title_y, 0)
+    glScalef(1, -1, 1) # Ortho is Y-down, so flip Y to make text upright
+    draw_textured_quad_3d(tex_id, title_w, title_h)
+    glPopMatrix()
     
     # 스테이지 선택
     stages = [1, 2, 3]
-    btn_w, btn_h = 150, 50
-    start_x = WIDTH//2 - (btn_w * 3 + 40) // 2
-    y = 250
+    btn_w, btn_h = 220, 60  # 버튼 크기 키움
+    gap = 30
+    total_w = len(stages) * btn_w + (len(stages) - 1) * gap
+    start_x = (WIDTH - total_w) // 2
+    y = 300
     
     for i, s in enumerate(stages):
-        x = start_x + i * (btn_w + 20)
+        x = start_x + i * (btn_w + gap)
         
         # 잠금 확인
         locked = False
@@ -844,68 +862,81 @@ def draw_home_screen(gltext: GLText, state):
         if s == 3 and 2 not in state["cleared_stages"]: locked = True
         
         # 버튼 그리기
-        color = (0.2, 0.6, 0.3, 1.0) if not locked else (0.3, 0.3, 0.3, 1.0)
+        if not locked:
+            # Active Stage Color (Greenish Blue)
+            color = (0.2, 0.6, 0.5, 1.0)
+            hover_color = (0.3, 0.7, 0.6, 1.0) # 마우스 오버 효과는 복잡하니 생략
+        else:
+            # Locked Color (Dark Gray)
+            color = (0.25, 0.25, 0.25, 1.0)
+            
         quad2(x, y, btn_w, btn_h, color)
         
-        # 텍스트
+        # 텍스트 (중앙 정렬)
         label = f"STAGE {s}"
-        if locked: label += " (Locked)"
-        gltext.draw(label, x + 20, y + 15, (255, 255, 255, 255))
+        if locked: label = "LOCKED"
         
-        # 버튼 영역 저장 (클릭 처리를 위해 state에 저장하거나, 여기서 바로 처리하지 않음)
-        # 간단하게 rect 정보를 반환하거나, state에 임시 저장
+        # 텍스트 너비 대략 계산 (GLText는 get_width가 없으므로 추정)
+        # 폰트 크기가 작으므로 적당히 오프셋
+        text_offset = len(label) * 5
+        gltext.draw(label, x + btn_w//2 - text_offset, y + btn_h//2 - 8, (255, 255, 255, 255))
+        
         state[f"btn_stage_{s}"] = (x, y, btn_w, btn_h)
 
     # 보트 스킨 선택
-    y_boat = 400
-    gltext.draw("SELECT BOAT", WIDTH//2 - 60, y_boat, (200, 200, 200, 255))
+    y_boat = 450
+    # 섹션 타이틀
+    tex_id, tw, th, aspect = get_text_texture("SELECT BOAT", font_size=40, color=(200, 200, 200, 255))
+    glPushMatrix()
+    glTranslatef(WIDTH//2, y_boat, 0)
+    glScalef(1, -1, 1) # Ortho is Y-down
+    draw_textured_quad_3d(tex_id, 300, 300/aspect)
+    glPopMatrix()
     
     # Red Box
-    bx = WIDTH//2 - 160
-    by = y_boat + 40
+    bx = WIDTH//2 - 180
+    by = y_boat + 50
     sel = state["selected_boat"] == "RED_BOX"
     col = (0.8, 0.3, 0.3, 1.0) if sel else (0.4, 0.2, 0.2, 1.0)
-    quad2(bx, by, 140, 50, col)
-    gltext.draw("Red Box", bx + 30, by + 15, (255, 255, 255, 255))
-    state["btn_boat_red"] = (bx, by, 140, 50)
+    quad2(bx, by, 160, 60, col)
+    gltext.draw("Red Box", bx + 50, by + 20, (255, 255, 255, 255))
+    state["btn_boat_red"] = (bx, by, 160, 60)
     
     # New Boat (Unlockable)
     bx2 = WIDTH//2 + 20
     locked_boat = not state["unlocked_boat"]
     sel2 = state["selected_boat"] == "NEW_BOAT"
     col2 = (0.3, 0.3, 0.8, 1.0) if sel2 else (0.2, 0.2, 0.4, 1.0)
-    if locked_boat: col2 = (0.3, 0.3, 0.3, 1.0)
+    if locked_boat: col2 = (0.25, 0.25, 0.25, 1.0)
     
-    quad2(bx2, by, 140, 50, col2)
+    quad2(bx2, by, 160, 60, col2)
     label2 = "New Boat" if not locked_boat else "Locked"
-    gltext.draw(label2, bx2 + 30, by + 15, (255, 255, 255, 255))
-    state["btn_boat_new"] = (bx2, by, 140, 50)
+    gltext.draw(label2, bx2 + 45, by + 20, (255, 255, 255, 255))
+    state["btn_boat_new"] = (bx2, by, 160, 60)
     
     if locked_boat:
-        gltext.draw("Clear Stage 3 to unlock!", WIDTH//2 - 100, by + 70, (255, 100, 100, 255))
+        gltext.draw("Clear Stage 3 to unlock!", WIDTH//2 - 90, by + 80, (255, 100, 100, 255))
 
     # Cheat Code Input
-    cheat_y = HEIGHT - 60
-    gltext.draw("Cheat Code:", 20, cheat_y + 10, (150, 150, 150, 255))
+    cheat_y = HEIGHT - 50
+    gltext.draw("Cheat Code:", 30, cheat_y + 10, (150, 150, 150, 255))
     
     # Input Box
-    box_x = 130
-    box_w = 200
-    quad2(box_x, cheat_y, box_w, 40, (0.2, 0.2, 0.2, 1.0))
+    box_x = 140
+    box_w = 250
+    quad2(box_x, cheat_y, box_w, 40, (0.15, 0.15, 0.15, 1.0))
     
-    # Display Buffer (Masked or Clear? User asked for input field, usually clear)
-    # But let's show what they type
     buf = state.get("cheat_buffer", "")
     if buf:
         gltext.draw(buf, box_x + 10, cheat_y + 10, (255, 255, 0, 255))
     else:
-        gltext.draw("Type here...", box_x + 10, cheat_y + 10, (100, 100, 100, 255))
+        gltext.draw("Type here...", box_x + 10, cheat_y + 10, (80, 80, 80, 255))
 
     end_ortho()
 
 INTRO_TEXTS = [
     "당신은 배를 타고 한강을 제 시간안에 건너야 합니다! 제한 시간 안에 화면 상단의 초록 Finish 구역에 있는 선착장(Dock)에 도달해야 합니다. 시간 초과나 화면 밖 이탈은 실패입니다.",
-    "오른쪽 패널의 원형 패드를 드래그하여 보트의 출발 각도와 속도를 설정합니다. 파란색 화살표가 방향/세기를 나타냅니다. 각도는 ±90°까지, 속도는 0~70 m/s 범위입니다.",
+    "오른쪽 패널의 원형 패드를 드래그하여 보트의 출발 각도와 속도를 설정합니다. 파란색 화살표가 방향/세기를 나타냅니다. 각도는 ±90°까지, 속도는 0~35 m/s 범위입니다.",
     "강은 5개의 레인으로 나뉘며 유속 방향이 교차합니다. 중앙일수록 깊어 빨라집니다. 코인을 먹으면 +5초, 장애물에 부딪히면 반사/감속됩니다.",
     "성공 조건: 선착장 영역 안에 정확히 들어가야 합니다.",
 ]
@@ -918,21 +949,25 @@ def draw_intro_overlay(gltext: GLText, state):
     quad2(0, 0, WIDTH, HEIGHT, (0, 0, 0, 0.85))
     
     # 박스
-    box_w, box_h = 860, 300
+    box_w, box_h = 900, 400
     bx = (WIDTH - box_w) // 2
     by = (HEIGHT - box_h) // 2
-    quad2(bx, by, box_w, box_h, (250/255, 250/255, 250/255, 1.0)) # White bg
+    quad2(bx, by, box_w, box_h, (0.95, 0.95, 0.95, 1.0)) # Off-white bg
     
-    # 테두리 (quad2는 채우기만 지원하므로 약간 큰 박스를 뒤에 그리거나 생략)
-    # 타이틀
-    gltext.draw("게임 설명", WIDTH//2 - 40, by + 30, (60, 120, 220, 255))
+    # 타이틀 (텍스처 텍스트 사용)
+    tex_id, tw, th, aspect = get_text_texture("게임 설명", font_size=50, color=(60, 120, 220, 255))
+    glPushMatrix()
+    glTranslatef(WIDTH//2, by + 50, 0)
+    glScalef(1, -1, 1) # Ortho Y-down flip
+    draw_textured_quad_3d(tex_id, 200, 200/aspect)
+    glPopMatrix()
     
-    # 텍스트 내용 (줄바꿈 처리 필요)
+    # 텍스트 내용 (줄바꿈 처리 개선)
     idx = state.get("intro_index", 0)
     text = INTRO_TEXTS[idx]
     
-    # 간단한 줄바꿈 (글자수 기반)
-    max_chars = 60
+    # 한글 폰트 크기가 작으므로 한 줄에 들어갈 글자 수 넉넉하게
+    max_chars = 55
     lines = []
     current_line = ""
     for word in text.split(' '):
@@ -944,17 +979,25 @@ def draw_intro_overlay(gltext: GLText, state):
             current_line += word
     if current_line: lines.append(current_line)
     
-    y = by + 80
+    y = by + 120
     for line in lines:
-        gltext.draw(line, bx + 40, y, (20, 20, 20, 255))
-        y += 26
+        # 좌측 정렬 (박스 내부 마진)
+        x = bx + 50
+        gltext.draw(line, x, y, (40, 40, 40, 255))
+        y += 35
         
     # Next 버튼
-    btn_w, btn_h = 120, 42
+    btn_w, btn_h = 150, 50
     btn_x = WIDTH//2 - btn_w//2
-    btn_y = by + box_h - 60
-    quad2(btn_x, btn_y, btn_w, btn_h, (76/255, 201/255, 128/255, 1.0)) # Green
-    gltext.draw("Next", btn_x + 40, btn_y + 10, (0, 0, 0, 255))
+    btn_y = by + box_h - 80
+    
+    # Button Hover Effect (Simple)
+    mx, my = pygame.mouse.get_pos()
+    hover = btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h
+    col = (0.3, 0.8, 0.5, 1.0) if not hover else (0.4, 0.9, 0.6, 1.0)
+    
+    quad2(btn_x, btn_y, btn_w, btn_h, col)
+    gltext.draw("Next", btn_x + 55, btn_y + 15, (255, 255, 255, 255))
     
     # 버튼 영역 저장
     state["btn_intro_next"] = (btn_x, btn_y, btn_w, btn_h)
@@ -1096,7 +1139,7 @@ def handle_tuning_input(ev, state):
             
             if param == 0: # Roughness
                 # 조도계수 순환
-                opts = ["매우_부정확_잡초_나무많음", "흙_직선", "흙_잡초", "자갈_바닥", "콘크리트_매끈"]
+                opts = ["매우 부정확_잡초", "흙_직선", "흙_잡초", "자갈_바닥", "콘크리트_매끈"]
                 try:
                     curr_idx = opts.index(p["roughness"])
                 except ValueError:
@@ -1194,7 +1237,13 @@ def reset_round(state, reroll_lanes=True, next_stage=False):
     state["started"] = False
     state["show_launch"] = True            # 런치 오버레이 표시
     state["launch_vec_screen"] = (0.0, -LAUNCH_RADIUS * 0.6)  # 기본 위쪽
-    state["time_left"] = cfg.SECONDS_LIMIT
+    
+    # 시간 제한 설정 (Stage 3는 15초 추가)
+    if state["stage"] == 3:
+        state["time_left"] = cfg.SECONDS_LIMIT + 15.0
+    else:
+        state["time_left"] = cfg.SECONDS_LIMIT
+        
     state["win"] = False
     state["lose"] = False
     
@@ -1273,7 +1322,7 @@ def main():
     state["cheat_buffer"] = ""
     
     # Intro State
-    state["scene"] = "INTRO" # Start with Intro
+    state["scene"] = "HOME" # Start with Home
     state["intro_index"] = 0
     
     reset_round(state)
@@ -1320,7 +1369,9 @@ def main():
                             # Next 클릭
                             state["intro_index"] += 1
                             if state["intro_index"] >= len(INTRO_TEXTS):
-                                state["scene"] = "HOME" # 인트로 끝나면 홈으로
+                                # 인트로 끝나면 게임 시작 (Stage 1)
+                                state["scene"] = "GAME"
+                                reset_round(state, reroll_lanes=True, next_stage=False)
                 continue
 
             # 홈 화면 입력 처리
@@ -1338,8 +1389,14 @@ def main():
                                 if s == 3 and 2 not in state["cleared_stages"]: continue
                                 
                                 state["stage"] = s
-                                state["scene"] = "GAME"
-                                reset_round(state, reroll_lanes=True, next_stage=False)
+                                
+                                # Stage 1 선택 시 인트로 보여주기 (이미 본 적 있어도 매번 보여달라는 요청으로 해석)
+                                if s == 1:
+                                    state["scene"] = "INTRO"
+                                    state["intro_index"] = 0
+                                else:
+                                    state["scene"] = "GAME"
+                                    reset_round(state, reroll_lanes=True, next_stage=False)
                                 break
                     
                     # 보트 선택
@@ -1358,19 +1415,22 @@ def main():
                 
                 elif ev.type == pygame.KEYDOWN:
                     # 치트 코드 입력 처리
-                    char = ev.unicode
-                    if char.isalpha():
-                        state["cheat_buffer"] += char.lower()
-                        # 버퍼 길이 제한 (최근 20자)
-                        if len(state["cheat_buffer"]) > 20:
-                            state["cheat_buffer"] = state["cheat_buffer"][-20:]
-                        
-                        # 치트 확인: "newjeans"
-                        if state["cheat_buffer"].endswith("newjeans"):
-                            state["cleared_stages"] = {1, 2, 3}
-                            state["unlocked_boat"] = True
-                            show_toast("CHEAT ACTIVATED: All Unlocked!")
-                            state["cheat_buffer"] = "" # 리셋
+                    if ev.key == pygame.K_BACKSPACE:
+                        state["cheat_buffer"] = state["cheat_buffer"][:-1]
+                    else:
+                        char = ev.unicode
+                        if char.isalpha():
+                            state["cheat_buffer"] += char.lower()
+                            # 버퍼 길이 제한 (최근 20자)
+                            if len(state["cheat_buffer"]) > 20:
+                                state["cheat_buffer"] = state["cheat_buffer"][-20:]
+                            
+                            # 치트 확인: "axiom"
+                            if state["cheat_buffer"].endswith("axiom"):
+                                state["cleared_stages"] = {1, 2, 3}
+                                state["unlocked_boat"] = True
+                                show_toast("CHEAT ACTIVATED: All Unlocked!")
+                                state["cheat_buffer"] = "" # 리셋
                 continue
 
             # 튜닝 모드 입력 처리

@@ -156,7 +156,9 @@ def draw_top_timer(
         f"Stage {stage}  |  "
         f"Score {score}"
     )
-    gltext.draw(text, bar_x + 120, bar_y + bar_h + 6, (0, 0, 0, 255))
+    # Stage 3는 배경이 어두우므로 흰색 텍스트
+    text_color = (255, 255, 255, 255) if stage == 3 else (0, 0, 0, 255)
+    gltext.draw(text, bar_x + 120, bar_y + bar_h + 6, text_color)
 
 
 def draw_compass(gltext: GLText, boat):

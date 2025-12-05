@@ -80,6 +80,10 @@ class Boat:
         self.vel.y -= v_rel_z * DRAG_Z * dt
         self.vel.x += flow * dt
 
+        # Enforce hard speed limit
+        if self.vel.length() > MAX_SPEED_HARD:
+            self.vel.scale_to_length(MAX_SPEED_HARD)
+
         self.pos += self.vel * dt
 
         if not self.trace or (self.trace[-1]-self.pos).length_squared()>1.5:

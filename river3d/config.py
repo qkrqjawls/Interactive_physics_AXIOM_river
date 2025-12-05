@@ -44,7 +44,7 @@ BOAT_LEN, BOAT_WID, BOAT_HGT = 3.0, 1.4, 0.6
 ENGINE_THRUST   = 14.0
 BRAKE_THRUST    = 8.0
 TURN_RATE_DEG   = 120.0
-MAX_SPEED_HARD  = 18.0 * 1.8   # TARGET_SPEED_MAX * 1.8
+MAX_SPEED_HARD  = 35.0   # User requested 35 m/s cap
 
 # ---- Bounce / steering ----
 BOUNCE_RESTITUTION = 0.50

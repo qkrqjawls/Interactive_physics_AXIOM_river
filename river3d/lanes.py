@@ -5,7 +5,7 @@ from .hydraulics import surface_velocity
 
 # Default profiles (3 lanes for first stage)
 LANE_PROFILES = [
-    {"depth":1.0,"section":"rect","b":8.0,"z":None,"roughness":"매우_부정확_잡초_나무많음","dir":-1},  # 1번 레인
+    {"depth":1.0,"section":"rect","b":8.0,"z":None,"roughness":"매우 부정확_잡초","dir":-1},  # 1번 레인
     {"depth":2.0,"section":"rect","b":8.0,"z":None,"roughness":"흙_직선","dir":+1},   # 2번 레인
     {"depth":1.6,"section":"rect","b":8.0,"z":None,"roughness":"흙_잡초","dir":-1},   # 3번 레인
 ]
