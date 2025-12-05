@@ -58,6 +58,69 @@ class GLText:
         glEnd()
         glDisable(GL_TEXTURE_2D); glDeleteTextures([tex])
 
+_TEXT_TEX_CACHE = {}
+
+def get_text_texture(text, font_size=64, color=(255, 255, 255, 255), bg_color=(0,0,0,0)):
+    """
+    텍스트를 텍스처로 변환하여 캐싱하고 반환.
+    Returns: (tex_id, width, height, aspect_ratio)
+    """
+    key = (text, font_size, color, bg_color)
+    if key in _TEXT_TEX_CACHE:
+        return _TEXT_TEX_CACHE[key]
+    
+    # Create font
+    try: font = pygame.font.SysFont("malgungothic", font_size, bold=True)
+    except: font = pygame.font.SysFont(None, font_size, bold=True)
+    
+    # Render
+    surf = font.render(text, True, color[:3])
+    # Add background if needed
+    if bg_color[3] > 0:
+        bg = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+        bg.fill(bg_color)
+        bg.blit(surf, (0,0))
+        surf = bg
+        
+    w, h = surf.get_width(), surf.get_height()
+    data = pygame.image.tostring(surf, "RGBA", False)
+    
+    tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+    
+    aspect = w / h if h > 0 else 1.0
+    val = (tex, w, h, aspect)
+    _TEXT_TEX_CACHE[key] = val
+    return val
+
+def draw_textured_quad_3d(tex_id, w, h):
+    """
+    3D 공간에 텍스처가 입혀진 Quad를 그림 (중심 기준)
+    """
+    glEnable(GL_TEXTURE_2D)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+    glColor4f(1, 1, 1, 1)
+    
+    hw, hh = w/2, h/2
+    glBegin(GL_QUADS)
+    # Top-Left
+    glTexCoord2f(0, 0); glVertex3f(-hw,  hh, 0)
+    # Top-Right
+    glTexCoord2f(1, 0); glVertex3f( hw,  hh, 0)
+    # Bottom-Right
+    glTexCoord2f(1, 1); glVertex3f( hw, -hh, 0)
+    # Bottom-Left
+    glTexCoord2f(0, 1); glVertex3f(-hw, -hh, 0)
+    glEnd()
+    
+    glDisable(GL_TEXTURE_2D)
+
 # ---- simple draw helpers ----
 def draw_box(hw, hh, hd, color):
     glColor3f(*color)

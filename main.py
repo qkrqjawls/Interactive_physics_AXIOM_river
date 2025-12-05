@@ -391,7 +391,7 @@ def draw_water_flow(game_time, stage=1):
                 alpha = 0.3 - dist_from_center / RIVER_WIDTH * 0.2
                 alpha = max(0.1, min(0.4, alpha))
                 
-                glColor4f(0.5, 0.7, 0.9, alpha)
+                glColor4f(0, 0, 0, alpha)
                 glLineWidth(1.5)
                 glBegin(GL_LINES)
                 glVertex3f(x_start, y, z_pos)
@@ -961,6 +961,38 @@ def draw_intro_overlay(gltext: GLText, state):
     
     end_ortho()
 
+def draw_pause_menu(gltext: GLText, state):
+    """일시정지 메뉴"""
+    begin_ortho()
+    
+    # Darken background
+    quad2(0, 0, WIDTH, HEIGHT, (0, 0, 0, 0.6))
+    
+    # Menu Box
+    box_w, box_h = 300, 220
+    bx = (WIDTH - box_w) // 2
+    by = (HEIGHT - box_h) // 2
+    quad2(bx, by, box_w, box_h, (0.15, 0.15, 0.18, 1.0))
+    
+    # Title
+    gltext.draw("PAUSED", WIDTH//2 - 40, by + 30, (255, 255, 255, 255))
+    
+    # Resume Button
+    btn_w, btn_h = 200, 50
+    btn_x = (WIDTH - btn_w) // 2
+    btn_y1 = by + 80
+    quad2(btn_x, btn_y1, btn_w, btn_h, (0.3, 0.6, 0.3, 1.0))
+    gltext.draw("Resume", btn_x + 60, btn_y1 + 15, (255, 255, 255, 255))
+    state["btn_pause_resume"] = (btn_x, btn_y1, btn_w, btn_h)
+    
+    # Home Button
+    btn_y2 = by + 150
+    quad2(btn_x, btn_y2, btn_w, btn_h, (0.6, 0.3, 0.3, 1.0))
+    gltext.draw("Go to Home", btn_x + 50, btn_y2 + 15, (255, 255, 255, 255))
+    state["btn_pause_home"] = (btn_x, btn_y2, btn_w, btn_h)
+    
+    end_ortho()
+
 def draw_manning_tuning_overlay(gltext: GLText, state):
     """
     매닝 공식 튜닝 콘솔 오버레이
@@ -1382,6 +1414,33 @@ def main():
                 continue
 
             # -------- 게임 입력 --------
+            # 일시정지 메뉴 입력 처리
+            if PAUSED:
+                if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    mx, my = ev.pos
+                    
+                    # Resume
+                    btn = state.get("btn_pause_resume")
+                    if btn:
+                        bx, by, bw, bh = btn
+                        if bx <= mx <= bx+bw and by <= my <= by+bh:
+                            PAUSED = False
+                            
+                    # Home
+                    btn = state.get("btn_pause_home")
+                    if btn:
+                        bx, by, bw, bh = btn
+                        if bx <= mx <= bx+bw and by <= my <= by+bh:
+                            PAUSED = False
+                            state["scene"] = "HOME"
+                            reset_round(state)
+                
+                # Allow ESC to unpause
+                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                    PAUSED = False
+                
+                continue # Skip other game inputs
+
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
                     PAUSED = not PAUSED
@@ -1584,6 +1643,12 @@ def main():
         # 튜닝 모드이면 오버레이만 그리고 스킵
         if state.get("tuning_mode", False):
             draw_manning_tuning_overlay(gltext, state)
+            pygame.display.flip()
+            continue
+            
+        # 일시정지 메뉴 렌더링
+        if PAUSED:
+            draw_pause_menu(gltext, state)
             pygame.display.flip()
             continue
         
