@@ -12,17 +12,32 @@ STUN_TIME = 0.20  # 벽 충돌 후 잠깐 컨트롤 지연(초)
 # ---- World ----
 RIVER_LENGTH = 1200
 RIVER_WIDTH  = 60.0
-LANE_COUNT   = 5
+LANE_COUNT   = 3
 DEFAULT_SLOPE = 0.001
 
 # ---- Gameplay ----
 SECONDS_LIMIT = 30.0
 COIN_TIME_BONUS = 5.0
-TIME_LEFT_MAX = 30.0
+TIME_LEFT_MAX = 30.0  # 최대 보유 시간 30초
 
 # ---- Hydraulics drag (x=cross-stream, z=downstream) ----
 DRAG_X = 0.12
 DRAG_Z = 0.08
+
+# ---- Stage 2: Ground River ----
+STAGE2_CURVE_AMP = 15.0   # 강 굽이침 폭
+STAGE2_CURVE_FREQ = 0.05  # 강 굽이침 빈도
+ISLAND_WIDTH = 6.0        # 섬 너비
+ISLAND_LENGTH = 30.0      # 섬 길이
+TREE_COUNT = 40           # 나무 개수
+
+# ---- Stage 3: Lava Zone ----
+STAGE3_CURVE_AMP = 25.0   # 더 심한 굽이침
+STAGE3_CURVE_FREQ = 0.08  # 더 잦은 굽이침
+LAVA_COLOR = (255/255, 60/255, 0/255)
+OBSIDIAN_COLOR = (40/255, 30/255, 35/255) # Slightly lighter dark rock
+MONSTER_COUNT = 15
+MONSTER_SPEED = 5.0
 
 # ---- Boat ----
 BOAT_LEN, BOAT_WID, BOAT_HGT = 3.0, 1.4, 0.6

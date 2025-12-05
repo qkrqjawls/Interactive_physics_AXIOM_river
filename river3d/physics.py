@@ -14,14 +14,17 @@ def bounce_response(boat, obst):
     bx0,bz0,bx1,bz1=boat_aabb(boat); ox0,oz0,ox1,oz1=obst.aabb()
     dx1=ox1-bx0; dx2=bx1-ox0; dz1=oz1-bz0; dz2=bz1-oz0
     pen_x=min(dx1,dx2); pen_z=min(dz1,dz2)
+    
+    # 더 강한 분리 거리
+    sep_dist = SEPARATION_EPS + 0.5
 
     if pen_x < pen_z:
         n = pygame.Vector2(1,0) if dx1 < dx2 else pygame.Vector2(-1,0)
-        push = (pen_x + SEPARATION_EPS) * (1 if n.x<0 else -1)
+        push = (pen_x + sep_dist) * (1 if n.x<0 else -1)
         boat.pos.x += push
     else:
         n = pygame.Vector2(0,1) if dz1 < dz2 else pygame.Vector2(0,-1)
-        push = (pen_z + SEPARATION_EPS) * (1 if n.y<0 else -1)
+        push = (pen_z + sep_dist) * (1 if n.y<0 else -1)
         boat.pos.y += push
 
     v_in=boat.vel
@@ -50,11 +53,18 @@ def bounce_response(boat, obst):
         v_reflect.y = min(v_reflect.y, MAX_BACK_BOUNCE_VZ)
 
     spd=v_reflect.length()
+    
+    # 속력이 너무 낮으면 강제로 밀어내기 (끼임 방지)
+    if spd < TARGET_SPEED_MIN * 0.5:
+        # 장애물에서 멀어지는 방향으로 강제 속도 부여
+        v_reflect = n * TARGET_SPEED_MIN * 1.5
+        spd = v_reflect.length()
+    
     if spd>1e-6:
         spd=max(TARGET_SPEED_MIN, min(TARGET_SPEED_MAX, spd))
         v_reflect.scale_to_length(spd)
     else:
-        v_reflect=boat.forward_vec()*TARGET_SPEED_MIN
+        v_reflect=n*TARGET_SPEED_MIN  # 장애물 반대 방향으로
 
     boat.vel = v_reflect
     f=boat.forward_vec()
@@ -124,25 +134,74 @@ def _reflect_with_normal(boat: Boat, n: pygame.Vector2):
     boat.curve_timer = CURVE_TIME
 
 
-def wall_bounce(boat: Boat):
-    """둔치(좌/우 벽)에서 튕겨 나오게 한다."""
-    half = RIVER_WIDTH * 0.5
+from river3d.map_gen import get_river_center, get_river_width, get_island_bounds, STAGE2_CURVE_FREQ, STAGE2_CURVE_AMP
+
+def wall_bounce(boat: Boat, stage: int = 1):
+    """둔치(좌/우 벽) 및 섬에서 튕겨 나오게 한다."""
+    
+    # 현재 위치에서의 강 정보
+    center_x = get_river_center(boat.pos.y, stage)
+    width = get_river_width(boat.pos.y, stage)
+    half = width * 0.5
+    
+    left_wall_x = center_x - half
+    right_wall_x = center_x + half
+    
     # 보트 AABB
     left  = boat.pos.x - BOAT_WID/2
     right = boat.pos.x + BOAT_WID/2
-
+    
     bounced = False
+    
+    # 곡선 벽의 법선 벡터 계산
+    # center(z) = sin(z*freq)*amp
+    # slope = d(center)/dz = cos(z*freq)*amp*freq
+    # Left Wall Normal (pointing right): (1, -slope)
+    # Right Wall Normal (pointing left): (-1, slope)
+    
+    if stage >= 2:
+        slope = math.cos(boat.pos.y * STAGE2_CURVE_FREQ) * STAGE2_CURVE_AMP * STAGE2_CURVE_FREQ
+    else:
+        slope = 0.0
 
-    # 좌측 벽
-    if left < -half:
-        boat.pos.x = -half + BOAT_WID/2 + SEPARATION_EPS
-        _reflect_with_normal(boat, pygame.Vector2(1, 0))
+    # 좌측 벽 충돌
+    if left < left_wall_x:
+        boat.pos.x = left_wall_x + BOAT_WID/2 + SEPARATION_EPS
+        # 법선 벡터: 강 안쪽(오른쪽)을 향함
+        n = pygame.Vector2(1.0, -slope).normalize()
+        _reflect_with_normal(boat, n)
         bounced = True
 
-    # 우측 벽
-    if right > half:
-        boat.pos.x = half - BOAT_WID/2 - SEPARATION_EPS
-        _reflect_with_normal(boat, pygame.Vector2(-1, 0))
+    # 우측 벽 충돌
+    if right > right_wall_x:
+        boat.pos.x = right_wall_x - BOAT_WID/2 - SEPARATION_EPS
+        # 법선 벡터: 강 안쪽(왼쪽)을 향함
+        n = pygame.Vector2(-1.0, slope).normalize()
+        _reflect_with_normal(boat, n)
         bounced = True
+        
+    # 섬 충돌 (Stage 2 이상)
+    island = get_island_bounds(boat.pos.y, stage)
+    if island:
+        ix_min, ix_max = island
+        # 보트가 섬의 x 범위와 겹치는지 확인
+        if right > ix_min and left < ix_max:
+            # 어느 쪽으로 튕길지 결정 (가까운 쪽)
+            dist_left = abs(right - ix_min)  # 섬의 왼쪽 벽과의 거리
+            dist_right = abs(left - ix_max)  # 섬의 오른쪽 벽과의 거리
+            
+            if dist_left < dist_right:
+                # 섬의 왼쪽 벽에 부딪힘 -> 왼쪽으로 튕김
+                boat.pos.x = ix_min - BOAT_WID/2 - SEPARATION_EPS
+                # 법선: 왼쪽을 향함 (-1, slope) 비슷하게.. 섬도 곡선 따라가므로
+                n = pygame.Vector2(-1.0, slope).normalize()
+                _reflect_with_normal(boat, n)
+            else:
+                # 섬의 오른쪽 벽에 부딪힘 -> 오른쪽으로 튕김
+                boat.pos.x = ix_max + BOAT_WID/2 + SEPARATION_EPS
+                # 법선: 오른쪽을 향함 (1, -slope)
+                n = pygame.Vector2(1.0, -slope).normalize()
+                _reflect_with_normal(boat, n)
+            bounced = True
 
     return bounced

@@ -3,13 +3,11 @@ from dataclasses import dataclass
 from .config import LANE_COUNT, RIVER_LENGTH, DEFAULT_SLOPE
 from .hydraulics import surface_velocity
 
-# Default profiles
+# Default profiles (3 lanes for first stage)
 LANE_PROFILES = [
-    {"depth":1.0,"section":"rect","b":8.0,"z":None,"roughness":"매우_부정확_잡초_나무많음","dir":-1},  # 1번 레인 (수정)
+    {"depth":1.0,"section":"rect","b":8.0,"z":None,"roughness":"매우_부정확_잡초_나무많음","dir":-1},  # 1번 레인
     {"depth":2.0,"section":"rect","b":8.0,"z":None,"roughness":"흙_직선","dir":+1},   # 2번 레인
     {"depth":1.6,"section":"rect","b":8.0,"z":None,"roughness":"흙_잡초","dir":-1},   # 3번 레인
-    {"depth":1.4,"section":"trap","b":7.0,"z":1.5,"roughness":"돌_쌓임더미","dir":+1},  # 4번 레인
-    {"depth":1.2,"section":"rect","b":8.0,"z":None,"roughness":"흙_직선","dir":-1},  # 5번 레인 (수정)
 ]
 
 MIN_DEPTH, MAX_DEPTH = 0.9, 2.2
@@ -54,8 +52,14 @@ def randomize_lane_depths(seed=None, min_d=MIN_DEPTH, max_d=MAX_DEPTH, bias_cent
     if seed is not None:
         random.seed(seed)
     depths = [random.uniform(min_d, max_d) for _ in range(LANE_COUNT)]
-    if bias_center:
-        weights = [0.88, 0.96, 1.10, 0.96, 0.88]
+    if bias_center and LANE_COUNT >= 3:
+        # 동적으로 weights 생성 (가운데가 더 깊음)
+        mid = LANE_COUNT // 2
+        weights = []
+        for i in range(LANE_COUNT):
+            dist_from_center = abs(i - mid)
+            w = 1.10 - dist_from_center * 0.08
+            weights.append(max(0.88, min(1.10, w)))
         depths = [max(min_d, min(max_d, d*w)) for d,w in zip(depths,weights)]
     sm = depths[:]
     for i in range(1, LANE_COUNT-1):
@@ -66,11 +70,12 @@ def randomize_lane_depths(seed=None, min_d=MIN_DEPTH, max_d=MAX_DEPTH, bias_cent
 def get_lane_index(zpos: float):
     """
     배의 z(하류 위치)에 맞는 레인 번호를 반환
-    레인 번호가 1부터 시작하도록 수정
+    시작 위치(z가 큰 쪽)가 Lane 1, 도크(z가 작은 쪽)가 Lane 5가 되도록 수정
     """
+    from .config import LANE_COUNT
     for i, ln in enumerate(LANES):
         if ln.z0 <= zpos < ln.z1:
-            return i + 1  # 레인 번호는 1부터 시작하도록 설정
+            return LANE_COUNT - i  # 뒤집어서 시작이 Lane 1, 도크가 Lane 5
     return None  # 해당하는 레인이 없으면 None 반환
 
 

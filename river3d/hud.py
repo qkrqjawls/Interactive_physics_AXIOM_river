@@ -4,7 +4,7 @@ from typing import Optional
 # OpenGL (2D HUD 그리기용)
 from OpenGL.GL import (
     glBegin, glEnd, glVertex2f, glColor4f,
-    GL_QUADS, GL_LINES, GL_LINE_STRIP, GL_POINTS, glPointSize
+    GL_QUADS, GL_LINES, GL_LINE_STRIP, GL_LINE_LOOP, GL_POINTS, glPointSize
 )
 from OpenGL.GL import glGetDoublev, glGetIntegerv, GL_MODELVIEW_MATRIX, GL_PROJECTION_MATRIX, GL_VIEWPORT
 from OpenGL.GLU import gluProject
@@ -37,11 +37,14 @@ def timer_color(elapsed_ratio: float):
     )
 
 # --------- HUD pieces ---------
-def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
+def draw_minimap(gltext: GLText, boat, dock, lanes=None, show_trail: bool = True):
     """
     오른쪽 상단 미니맵 (정상 방향)
     - z(하류) 증가할수록 미니맵 y도 증가하도록 매핑 (반전 제거)
     """
+    if lanes is None:
+        from .lanes import LANES as lanes
+
     mm_w, mm_h = 200, 130
     mm_x, mm_y = WIDTH - 20 - mm_w, 20
 
@@ -50,7 +53,7 @@ def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
 
     # 레인 띠 (수심색)
     glBegin(GL_QUADS)
-    for ln in LANES:
+    for ln in lanes:
         c = depth_to_color(ln.depth, MIN_DEPTH, MAX_DEPTH)
         glColor4f(c[0], c[1], c[2], 0.9)
         # 정방향 매핑: v = z / RIVER_LENGTH   (반전 없이)
@@ -63,14 +66,43 @@ def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
         glVertex2f(mm_x+mm_w,   y1)
         glVertex2f(mm_x,        y1)
     glEnd()
+    
+    # 각 레인의 깊이 표시 (h= 형식)
+    from .config import LANE_COUNT
+    for i, ln in enumerate(lanes):
+        z_center = (ln.z0 + ln.z1) / 2 / RIVER_LENGTH
+        y_center = mm_y + z_center * mm_h
+        depth_text = f"h={ln.depth:.1f}m"
+        # 속도 표시 (L값 대신)
+        speed_text = f"{abs(ln.vx):.1f}m/s"
+        gltext.draw(f"{speed_text} {depth_text}", mm_x + 5, int(y_center) - 8, (255, 255, 255, 200))
 
-    # 도크 위치 라인 (정방향)
-    glColor4f(0.16, 0.70, 0.36, 1.0)
-    dz = dock.z / RIVER_LENGTH
-    y_dock = mm_y + dz * mm_h
-    glBegin(GL_LINES)
-    glVertex2f(mm_x,        y_dock)
-    glVertex2f(mm_x+mm_w,   y_dock)
+    # 도크 위치를 직사각형 타일로 표시
+    glColor4f(0.16, 0.70, 0.36, 0.95)
+    dock_z0 = dock.z / RIVER_LENGTH
+    dock_z1 = (dock.z + dock.l) / RIVER_LENGTH  # 도크 길이만큼
+    dock_x0 = (dock.x - dock.w/2 + RIVER_WIDTH/2) / RIVER_WIDTH
+    dock_x1 = (dock.x + dock.w/2 + RIVER_WIDTH/2) / RIVER_WIDTH
+    
+    y0_dock = mm_y + dock_z0 * mm_h
+    y1_dock = mm_y + dock_z1 * mm_h
+    x0_dock = mm_x + dock_x0 * mm_w
+    x1_dock = mm_x + dock_x1 * mm_w
+    
+    glBegin(GL_QUADS)
+    glVertex2f(x0_dock, y0_dock)
+    glVertex2f(x1_dock, y0_dock)
+    glVertex2f(x1_dock, y1_dock)
+    glVertex2f(x0_dock, y1_dock)
+    glEnd()
+    
+    # 도크 테두리 강조
+    glColor4f(0.1, 0.5, 0.25, 1.0)
+    glBegin(GL_LINE_LOOP)
+    glVertex2f(x0_dock, y0_dock)
+    glVertex2f(x1_dock, y0_dock)
+    glVertex2f(x1_dock, y1_dock)
+    glVertex2f(x0_dock, y1_dock)
     glEnd()
 
     # 궤적
@@ -92,12 +124,11 @@ def draw_minimap(gltext: GLText, boat, dock, show_trail: bool = True):
     glVertex2f(mm_x + u*mm_w, mm_y + v*mm_h)
     glEnd()
 
-    # 현재 레인 간단 표기
-    for i, ln in enumerate(LANES):
-        if ln.z0 <= boat.pos.y < ln.z1:
-            # 레인 번호를 1번부터 시작하여 표시
-            gltext.draw(f"Lane {i+1}", mm_x+8, mm_y+mm_h+6, (220, 220, 230, 255))
-            break
+    # 현재 레인 간단 표기 (get_lane_index는 이미 뒤집힌 번호를 반환)
+    from .lanes import get_lane_index
+    lane_num = get_lane_index(boat.pos.y)
+    if lane_num is not None:
+        gltext.draw(f"Lane {lane_num}", mm_x+8, mm_y+mm_h+6, (220, 220, 230, 255))
 
 
 def draw_top_timer(
@@ -119,9 +150,9 @@ def draw_top_timer(
     col = timer_color(1.0 - ratio)
     quad2(bar_x, bar_y, int(bar_w * ratio), bar_h, col)
 
-    # 요청에 맞춰 간단 표기(Score 중심), 필요 시 주석 풀어서 확장 가능
+    # 요청에 맞춰 간단 표기(Score 중심)
     text = (
-        f"Time {min(time_left, 20.00):05.2f}s  |  "
+        f"Time {time_left:05.2f}s  |  "
         f"Stage {stage}  |  "
         f"Score {score}"
     )
@@ -172,7 +203,7 @@ def draw_help_strip(gltext: GLText):
 def draw_lane_tune_prompt(gltext: GLText, idx: Optional[int]):
     if idx is None:
         return
-    txt = f"Lane {idx+1}: set flow  1:-30%  2:-15%  3:base  4:+15%  5:+30%"
+    txt = f"Lane {idx}: set flow  1:-30%  2:-15%  3:base  4:+15%  5:+30%"
     tw, th = 620, 34
     x, y = (WIDTH - tw)//2, 98
     quad2(x, y, tw, th, (0, 0, 0, 0.60))
@@ -186,6 +217,59 @@ def draw_toast(gltext: GLText, text: str):
     tx, ty = (WIDTH - tw)//2, HEIGHT - 80
     quad2(tx, ty, tw, th, (0, 0, 0, 0.55))
     gltext.draw(text, tx+10, ty+8, (255, 255, 255, 255))
+
+
+def draw_lane_flow_popup(gltext: GLText, lane_num: int, flow_speed: float, flow_dir: int, anim_progress: float):
+    """
+    새 구간 진입 시 유속과 방향을 팝업으로 보여준다.
+    flow_dir: -1 = 왼쪽, +1 = 오른쪽
+    anim_progress: 0.0~1.0 (애니메이션 진행도, 1.0이면 완전히 표시)
+    """
+    if anim_progress <= 0:
+        return
+    
+    # 애니메이션 효과 (뿅 하고 나타나는 느낌)
+    scale = min(1.0, anim_progress * 2.0)  # 빠르게 커짐
+    alpha = min(1.0, anim_progress * 1.5) if anim_progress < 0.8 else max(0.0, (1.0 - anim_progress) * 5.0)
+    
+    pw, ph = int(320 * scale), int(100 * scale)
+    px, py = (WIDTH - pw)//2, (HEIGHT - ph)//2 - 50
+    
+    # 배경 (반투명, 그라데이션 느낌)
+    bg_color = (0.1, 0.15, 0.25, 0.85 * alpha)
+    quad2(px, py, pw, ph, bg_color)
+    
+    # 테두리
+    border_color = (0.3, 0.6, 0.9, alpha)
+    glColor4f(*border_color)
+    glBegin(GL_LINE_LOOP)
+    glVertex2f(px, py)
+    glVertex2f(px + pw, py)
+    glVertex2f(px + pw, py + ph)
+    glVertex2f(px, py + ph)
+    glEnd()
+    
+    if scale < 0.5:
+        return  # 너무 작으면 텍스트 안 그림
+    
+    # 레인 번호
+    lane_text = f"Lane {lane_num}"
+    text_alpha = int(255 * alpha)
+    gltext.draw(lane_text, px + pw//2 - 30, py + 12, (255, 255, 255, text_alpha))
+    
+    # 화살표 방향
+    arrow = "←" if flow_dir < 0 else "→"
+    arrow_color = (100, 200, 255, text_alpha) if flow_dir < 0 else (255, 180, 100, text_alpha)
+    gltext.draw(arrow, px + pw//2 - 60, py + 45, arrow_color)
+    gltext.draw(arrow, px + pw//2 + 45, py + 45, arrow_color)
+    
+    # 유속 숫자
+    speed_text = f"{abs(flow_speed):.1f} m/s"
+    gltext.draw(speed_text, px + pw//2 - 35, py + 45, (255, 255, 100, text_alpha))
+    
+    # 설명
+    dir_text = "왼쪽으로 흐름" if flow_dir < 0 else "오른쪽으로 흐름"
+    gltext.draw(dir_text, px + pw//2 - 50, py + 75, (200, 200, 220, text_alpha))
 
 
 def draw_pause_menu(gltext: GLText):
@@ -254,9 +338,12 @@ def draw_next_stage_tuner(gltext: GLText, scales, active_lane: Optional[int] = N
     h_bar = 18
     gap  = 42
 
+    from .config import LANE_COUNT
     for i, val in enumerate(scales):
         y = top + i*gap
-        gltext.draw(f"Lane {i+1}", left, y-18, (40, 40, 40, 255))
+        # 뒤집힌 레인 번호 (시작이 1, 도크가 5)
+        display_lane = LANE_COUNT - i
+        gltext.draw(f"Lane {display_lane}", left, y-18, (40, 40, 40, 255))
         # 바 배경
         quad2(left, y, w_bar, h_bar, (0.90, 0.93, 0.96, 1.0))
         # 값 → 0..1 정규화
