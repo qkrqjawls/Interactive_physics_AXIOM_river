@@ -195,7 +195,7 @@ def draw_help_strip(gltext: GLText):
     help_x, help_y = (WIDTH - help_w)//2, HEIGHT - 40
     quad2(help_x, help_y, help_w, help_h, (46/255, 50/255, 60/255, 0.95))
     gltext.draw(
-        "←/→ turn | ↑/W throttle | ↓/S brake | T mouse-steer | 1..5 tune lane | R restart | L reroll | M minimap | P path | ESC pause",
+        "←/→ turn | ↑/W throttle | ↓/S brake | T mouse-steer | R restart | P path | ESC pause",
         help_x + 8, help_y + 6, (240, 240, 240, 255)
     )
 

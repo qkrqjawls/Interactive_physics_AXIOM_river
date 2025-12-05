@@ -1389,13 +1389,6 @@ def main():
                     pygame.quit(); sys.exit(0)
                 elif ev.key == pygame.K_r:
                     reset_round(state)
-                elif ev.key == pygame.K_l:
-                    randomize_lane_depths()
-                    globals()["LANES"], globals()["LANE_INFO"] = build_lanes_from_manning()
-                    show_toast("Rerolled lanes")
-                elif ev.key == pygame.K_m:
-                    cfg.SHOW_MINIMAP = not cfg.SHOW_MINIMAP
-                    show_toast(f"Minimap {'ON' if cfg.SHOW_MINIMAP else 'OFF'}")
                 elif ev.key == pygame.K_p:
                     cfg.SHOW_PREDICT = not cfg.SHOW_PREDICT
                     show_toast(f"Predict {'ON' if cfg.SHOW_PREDICT else 'OFF'}")
